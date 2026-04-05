@@ -133,6 +133,10 @@ sudo pacman -S chromium dotnet-sdk
 # From AUR (requires yay or paru)
 yay -S brave-bin
 ```
+Other recommended apps:
+```sh
+yay -S zen-browser-bin obsidian
+```
 These can be installed later, or their references removed from `~/.config/hypr/hyprland.conf` and `~/.config/waybar/config.jsonc` if not needed.
 
 ## 3. Arch Linux
