@@ -25,7 +25,7 @@ echo "clipboard bridge: host ↔ $VM (via SSH)"
            ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
            ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
             cp "$STATE/cur" "$STATE/sent"
-            ssh -o ConnectTimeout=2 "$VM" 'wl-copy' < "$STATE/cur" 2>/dev/null || true
+            ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=accept-new "$VM" 'wl-copy' < "$STATE/cur" 2>/dev/null || true
         fi
         sleep 0.3
     done
@@ -34,7 +34,7 @@ echo "clipboard bridge: host ↔ $VM (via SSH)"
 # VM → Host: poll VM clipboard via SSH, copy if changed
 (
     while true; do
-        ssh -o ConnectTimeout=2 "$VM" 'wl-paste 2>/dev/null' > "$STATE/remote" 2>/dev/null
+        ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=accept-new "$VM" 'wl-paste 2>/dev/null' > "$STATE/remote" 2>/dev/null
         if [ -s "$STATE/remote" ] && \
            ! cmp -s "$STATE/remote" "$STATE/recv" 2>/dev/null && \
            ! cmp -s "$STATE/remote" "$STATE/sent" 2>/dev/null; then
