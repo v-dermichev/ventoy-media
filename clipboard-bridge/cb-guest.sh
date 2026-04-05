@@ -21,11 +21,14 @@ trap cleanup EXIT
 # Host → VM: listen for clipboard data
 (
     while true; do
-        socat -d0 -u TCP-LISTEN:$PORT_FROM_HOST,reuseaddr - > "$STATE_DIR/incoming" 2>/dev/null
-        if [ -s "$STATE_DIR/incoming" ]; then
-            if ! cmp -s "$STATE_DIR/incoming" "$STATE_DIR/last_recv" 2>/dev/null; then
-                cp "$STATE_DIR/incoming" "$STATE_DIR/last_recv"
-                wl-copy < "$STATE_DIR/incoming"
+        socat -d0 TCP-LISTEN:$PORT_FROM_HOST,reuseaddr - 2>/dev/null > "$STATE_DIR/raw_incoming"
+        if [ -s "$STATE_DIR/raw_incoming" ]; then
+            tail -c +11 "$STATE_DIR/raw_incoming" > "$STATE_DIR/incoming"
+            if [ -s "$STATE_DIR/incoming" ]; then
+                if ! cmp -s "$STATE_DIR/incoming" "$STATE_DIR/last_recv" 2>/dev/null; then
+                    cp "$STATE_DIR/incoming" "$STATE_DIR/last_recv"
+                    wl-copy < "$STATE_DIR/incoming"
+                fi
             fi
         fi
     done
@@ -40,7 +43,9 @@ sleep 1
             if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_sent" 2>/dev/null; then
                 if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_recv" 2>/dev/null; then
                     cp "$STATE_DIR/current" "$STATE_DIR/last_sent"
-                    cat "$STATE_DIR/current" | socat -d0 -u - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null || true
+                    len=$(wc -c < "$STATE_DIR/current")
+                    { printf '%010d' "$len"; cat "$STATE_DIR/current"; } | \
+                        socat -d0 - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null || true
                 fi
             fi
         fi
