@@ -1,8 +1,7 @@
 # ISOs are large — download separately
 *.iso
 
-# Generated archives
-*.tar.gz
+# Generated archives (except live injection hooks)
 *.cpio.gz
 
 # Static binaries (download or build separately)
