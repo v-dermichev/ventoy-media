@@ -30,6 +30,7 @@ echo "log: $LOG"
             s2=$(! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null && echo 1 || echo 0)
             if [ "$s1" = "1" ] && [ "$s2" = "1" ]; then
                 cp "$STATE/cur" "$STATE/sent"
+                cp "$STATE/cur" "$STATE/recv"
                 data=$(base64 -w0 < "$STATE/cur")
                 echo "$(date +%T) SEND: $(head -c 40 $STATE/cur)..." >> "$LOG"
                 ssh -f -o BatchMode=yes -o ConnectTimeout=2 "$VM" \
@@ -52,6 +53,7 @@ echo "log: $LOG"
                 r2=$(! cmp -s "$STATE/remote" "$STATE/sent" 2>/dev/null && echo 1 || echo 0)
                 if [ "$r1" = "1" ] && [ "$r2" = "1" ]; then
                     cp "$STATE/remote" "$STATE/recv"
+                    cp "$STATE/remote" "$STATE/sent"
                     echo "$(date +%T) RECV: $(head -c 40 $STATE/remote)..." >> "$LOG"
                     wl-copy < "$STATE/recv"
                 fi
