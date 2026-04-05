@@ -27,7 +27,7 @@ echo "clipboard bridge: host ↔ $VM_IP"
         [ "$line" = "$last" ] && continue
         [ -z "$line" ] && continue
         last="$line"
-        echo "$line" | socat - TCP:$VM_IP:$PORT_TO_VM 2>/dev/null
+        echo "$line" | socat -d0 - TCP:$VM_IP:$PORT_TO_VM 2>/dev/null
     done
 ) &
 PID_SEND=$!

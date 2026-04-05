@@ -37,7 +37,7 @@ sleep 1
         [ "$line" = "$last" ] && continue
         [ -z "$line" ] && continue
         last="$line"
-        echo "$line" | socat - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null
+        echo "$line" | socat -d0 - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null
     done
 ) &
 PID_SEND=$!
