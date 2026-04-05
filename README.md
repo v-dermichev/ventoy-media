@@ -125,6 +125,13 @@ Boot the Artix ISO from Ventoy. The injected scripts provide:
   ```
 - Special workspaces (scratchpads) are toggled with keybinds — check `hyprland.conf` for details
 
+#### Optional packages
+The dotfiles expect some apps that are not installed by the script:
+```sh
+sudo pacman -S brave-bin chromium dotnet-sdk
+```
+These can be installed later, or their references removed from `~/.config/hypr/hyprland.conf` and `~/.config/waybar/config.jsonc` if not needed.
+
 ## 3. Arch Linux
 
 > TODO: Arch-specific installer scripts
