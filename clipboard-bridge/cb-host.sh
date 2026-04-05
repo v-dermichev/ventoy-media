@@ -24,7 +24,7 @@ echo "log: $LOG"
 # Host → VM: poll clipboard, send if changed
 (
     while true; do
-        wl-paste 2>/dev/null > "$STATE/cur"
+        wl-paste --no-newline 2>/dev/null > "$STATE/cur"
         if [ -s "$STATE/cur" ]; then
             s1=$(! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && echo 1 || echo 0)
             s2=$(! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null && echo 1 || echo 0)
@@ -45,7 +45,7 @@ echo "log: $LOG"
 (
     while true; do
         ssh -o BatchMode=yes -o ConnectTimeout=2 "$VM" \
-            "WAYLAND_DISPLAY=$VM_WL wl-paste 2>/dev/null | base64 -w0" </dev/null 2>/dev/null > "$STATE/remote_b64"
+            "WAYLAND_DISPLAY=$VM_WL wl-paste --no-newline 2>/dev/null | base64 -w0" </dev/null 2>/dev/null > "$STATE/remote_b64"
         if [ -s "$STATE/remote_b64" ]; then
             base64 -d < "$STATE/remote_b64" > "$STATE/remote" 2>/dev/null
             if [ -s "$STATE/remote" ]; then
