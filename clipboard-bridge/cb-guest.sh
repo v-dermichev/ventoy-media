@@ -9,27 +9,19 @@ HOST_IP="${1:-192.168.122.1}"
 PORT_FROM_HOST=5556  # host → VM (we listen)
 PORT_TO_HOST=5557    # VM → host (we send)
 
-STATE_DIR="/tmp/clipboard-bridge-guest"
-mkdir -p "$STATE_DIR"
+STATE="/tmp/cb-bridge-guest"
+mkdir -p "$STATE"
 
-cleanup() {
-    kill $(jobs -p) 2>/dev/null
-    rm -rf "$STATE_DIR"
-}
+cleanup() { kill $(jobs -p) 2>/dev/null; rm -rf "$STATE"; }
 trap cleanup EXIT
 
-# Host → VM: listen for clipboard data
+# Host → VM: listen for incoming clipboard
 (
     while true; do
-        socat -d0 TCP-LISTEN:$PORT_FROM_HOST,reuseaddr - 2>/dev/null > "$STATE_DIR/raw_incoming"
-        if [ -s "$STATE_DIR/raw_incoming" ]; then
-            tail -c +11 "$STATE_DIR/raw_incoming" > "$STATE_DIR/incoming"
-            if [ -s "$STATE_DIR/incoming" ]; then
-                if ! cmp -s "$STATE_DIR/incoming" "$STATE_DIR/last_recv" 2>/dev/null; then
-                    cp "$STATE_DIR/incoming" "$STATE_DIR/last_recv"
-                    wl-copy < "$STATE_DIR/incoming"
-                fi
-            fi
+        nc -l -p "$PORT_FROM_HOST" > "$STATE/inc" 2>/dev/null
+        if [ -s "$STATE/inc" ] && ! cmp -s "$STATE/inc" "$STATE/recv" 2>/dev/null; then
+            cp "$STATE/inc" "$STATE/recv"
+            wl-copy < "$STATE/inc"
         fi
     done
 ) &
@@ -38,16 +30,12 @@ trap cleanup EXIT
 sleep 1
 (
     while true; do
-        wl-paste 2>/dev/null > "$STATE_DIR/current"
-        if [ -s "$STATE_DIR/current" ]; then
-            if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_sent" 2>/dev/null; then
-                if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_recv" 2>/dev/null; then
-                    cp "$STATE_DIR/current" "$STATE_DIR/last_sent"
-                    len=$(wc -c < "$STATE_DIR/current")
-                    { printf '%010d' "$len"; cat "$STATE_DIR/current"; } | \
-                        socat -d0 - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null || true
-                fi
-            fi
+        wl-paste 2>/dev/null > "$STATE/cur"
+        if [ -s "$STATE/cur" ] && \
+           ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
+           ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
+            cp "$STATE/cur" "$STATE/sent"
+            nc -q0 -w1 "$HOST_IP" "$PORT_TO_HOST" < "$STATE/cur" 2>/dev/null || true
         fi
         sleep 0.3
     done

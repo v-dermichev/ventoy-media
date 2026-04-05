@@ -8,15 +8,12 @@
 VM_IP="${1:?Usage: cb-host.sh <vm-ip>}"
 PORT_TO_VM=5556    # host → VM
 PORT_FROM_VM=5557  # VM → host
+BIND_IP="192.168.122.1"
 
-STATE_DIR="/tmp/clipboard-bridge-host"
-mkdir -p "$STATE_DIR"
+STATE="/tmp/cb-bridge-host"
+mkdir -p "$STATE"
 
-cleanup() {
-    kill $(jobs -p) 2>/dev/null
-    rm -rf "$STATE_DIR"
-    echo "clipboard bridge stopped"
-}
+cleanup() { kill $(jobs -p) 2>/dev/null; rm -rf "$STATE"; echo "stopped"; }
 trap cleanup EXIT
 
 echo "clipboard bridge: host ↔ $VM_IP"
@@ -24,36 +21,24 @@ echo "clipboard bridge: host ↔ $VM_IP"
 # Host → VM: poll clipboard, send if changed
 (
     while true; do
-        wl-paste 2>/dev/null > "$STATE_DIR/current"
-        if [ -s "$STATE_DIR/current" ]; then
-            if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_sent" 2>/dev/null; then
-                if ! cmp -s "$STATE_DIR/current" "$STATE_DIR/last_recv" 2>/dev/null; then
-                    cp "$STATE_DIR/current" "$STATE_DIR/last_sent"
-                    # Send length header + data
-                    len=$(wc -c < "$STATE_DIR/current")
-                    { printf '%010d' "$len"; cat "$STATE_DIR/current"; } | \
-                        socat -d0 - TCP:$VM_IP:$PORT_TO_VM 2>/dev/null || true
-                fi
-            fi
+        wl-paste 2>/dev/null > "$STATE/cur"
+        if [ -s "$STATE/cur" ] && \
+           ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
+           ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
+            cp "$STATE/cur" "$STATE/sent"
+            nc -q0 -w1 "$VM_IP" "$PORT_TO_VM" < "$STATE/cur" 2>/dev/null || true
         fi
         sleep 0.3
     done
 ) &
 
-# VM → Host: listen for clipboard data
+# VM → Host: listen for incoming clipboard
 (
     while true; do
-        # Receive length header + data
-        socat -d0 TCP-LISTEN:$PORT_FROM_VM,bind=192.168.122.1,reuseaddr - 2>/dev/null > "$STATE_DIR/raw_incoming"
-        if [ -s "$STATE_DIR/raw_incoming" ]; then
-            # Strip 10-byte length header
-            tail -c +11 "$STATE_DIR/raw_incoming" > "$STATE_DIR/incoming"
-            if [ -s "$STATE_DIR/incoming" ]; then
-                if ! cmp -s "$STATE_DIR/incoming" "$STATE_DIR/last_recv" 2>/dev/null; then
-                    cp "$STATE_DIR/incoming" "$STATE_DIR/last_recv"
-                    wl-copy < "$STATE_DIR/incoming"
-                fi
-            fi
+        nc -l -p "$PORT_FROM_VM" -s "$BIND_IP" > "$STATE/inc" 2>/dev/null
+        if [ -s "$STATE/inc" ] && ! cmp -s "$STATE/inc" "$STATE/recv" 2>/dev/null; then
+            cp "$STATE/inc" "$STATE/recv"
+            wl-copy < "$STATE/inc"
         fi
     done
 ) &
