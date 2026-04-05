@@ -12,3 +12,4 @@ artix/sysroot/usr/local/bin/wproulette
 
 # Network configs may contain secrets
 Network/
+CLAUDE.md
