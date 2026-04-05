@@ -120,6 +120,18 @@ Boot the Artix ISO from Ventoy. The injected scripts provide:
 - Sudo password requirement (opt-out)
 - Timezone (fzf selector or manual input)
 
+#### After first boot:
+- `Super + D` — launch apps (wofi launcher)
+- `Super + Enter` — open terminal (kitty)
+- Apps can be assigned to named workspaces in `~/.config/hypr/hyprland.conf`:
+  ```
+  # Example: assign apps to workspaces
+  windowrulev2 = workspace 2, class:^(brave-browser)$
+  windowrulev2 = workspace 3, class:^(code)$
+  windowrulev2 = workspace name:music, class:^(Spotify)$
+  ```
+- Special workspaces (scratchpads) are toggled with keybinds — check `hyprland.conf` for details
+
 ## 3. Arch Linux
 
 > TODO: Arch-specific installer scripts
