@@ -5,9 +5,6 @@
 *.cpio.gz
 
 # Static binaries (download or build separately)
-artix/sysroot/usr/local/bin/fzf
-artix/sysroot/usr/local/bin/yazi
-artix/sysroot/usr/local/bin/wproulette
 
 # Network configs may contain secrets
 Network/
