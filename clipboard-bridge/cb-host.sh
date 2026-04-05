@@ -17,29 +17,30 @@ trap cleanup EXIT
 
 echo "clipboard bridge: host ↔ $VM_IP"
 
-# Host → VM: watch clipboard, send only non-empty changes
+LAST_SENT=""
+LAST_RECV=""
+
+# Host → VM: poll clipboard every 250ms, send if changed
 (
-    last=""
-    wl-paste --watch sh -c '
-        data=$(wl-paste 2>/dev/null)
-        [ -n "$data" ] && echo "$data"
-    ' | while IFS= read -r line; do
-        [ "$line" = "$last" ] && continue
-        [ -z "$line" ] && continue
-        last="$line"
-        echo "$line" | socat -d0 - TCP:$VM_IP:$PORT_TO_VM 2>/dev/null
+    while true; do
+        data=$(wl-paste --no-newline 2>/dev/null) || true
+        if [ -n "$data" ] && [ "$data" != "$LAST_SENT" ] && [ "$data" != "$LAST_RECV" ]; then
+            LAST_SENT="$data"
+            printf '%s' "$data" | socat -d0 - TCP:$VM_IP:$PORT_TO_VM 2>/dev/null && true
+        fi
+        sleep 0.25
     done
 ) &
 PID_SEND=$!
 
-# VM → Host: listen for clipboard data from VM, deduplicate
+# VM → Host: listen for clipboard data from VM
 (
-    last=""
-    socat -d0 TCP-LISTEN:$PORT_FROM_VM,bind=192.168.122.1,reuseaddr,fork STDOUT | while IFS= read -r line; do
-        [ "$line" = "$last" ] && continue
-        [ -z "$line" ] && continue
-        last="$line"
-        echo "$line" | wl-copy
+    while true; do
+        data=$(socat -d0 TCP-LISTEN:$PORT_FROM_VM,bind=192.168.122.1,reuseaddr - 2>/dev/null)
+        if [ -n "$data" ] && [ "$data" != "$LAST_RECV" ]; then
+            LAST_RECV="$data"
+            printf '%s' "$data" | wl-copy
+        fi
     done
 ) &
 PID_RECV=$!
