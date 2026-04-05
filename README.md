@@ -65,26 +65,19 @@ USB (Ventoy)/
 
 Scripts are injected into the live environment using [LiveInjection](https://github.com/ventoy/LiveInjection) with live directory mode — the sysroot directory lives directly on the USB. Edit scripts in place, changes take effect on next boot without repacking.
 
-**One-time setup:**
+The hooks archive (`.live_injection.tar.gz`) is included in this repo. Just copy `artix/sysroot/` to `sysroot/` on the USB — no additional setup required.
 
-1. Clone LiveInjection:
-   ```sh
-   git clone https://github.com/ventoy/LiveInjection.git /tmp/LiveInjection
-   ```
+Optionally add static binaries to `sysroot/usr/local/bin/`:
+- `fzf` — fuzzy finder (for timezone/disk selection)
+- `yazi` — terminal file manager
+- `wproulette` — wallpaper roulette ([repo](https://github.com/v-dermichev/swww-wproulette))
 
-2. Generate the hooks archive into the sysroot on the USB:
-   ```sh
-   cd /tmp/LiveInjection
-   sudo sh pack.sh --live /sysroot /mnt/ventoy-usb/sysroot
-   ```
-   This creates a tiny (~2KB) `.live_injection.tar.gz` inside the sysroot directory.
-
-3. Optionally add static binaries to `sysroot/usr/local/bin/`:
-   - `fzf` — fuzzy finder (for timezone/disk selection)
-   - `yazi` — terminal file manager
-   - `wproulette` — wallpaper roulette ([repo](https://github.com/v-dermichev/swww-wproulette))
-
-> **Note:** The `pack.sh --live` flag requires a [patched LiveInjection](https://github.com/v-dermichev/LiveInjection/tree/feature/directory-sysroot) that supports live directory mode. The classic `pack.sh` (without `--live`) also works — it packs the sysroot into the archive, but requires repacking after every edit.
+> **Regenerating the hooks archive:** Only needed if you change the sysroot path on the USB. Requires the [patched LiveInjection](https://github.com/v-dermichev/LiveInjection/tree/feature/directory-sysroot) fork:
+> ```sh
+> git clone -b feature/directory-sysroot https://github.com/v-dermichev/LiveInjection.git /tmp/LiveInjection
+> cd /tmp/LiveInjection
+> sudo sh pack.sh --live /sysroot /mnt/ventoy-usb/sysroot
+> ```
 
 ### Installation Flow
 
