@@ -1,4 +1,4 @@
-# Install Media
+# Ventoy Media
 
 Ventoy-based multi-boot installation USB with automated setup scripts.
 
@@ -12,7 +12,7 @@ Ventoy-based multi-boot installation USB with automated setup scripts.
 ```
 USB (Ventoy)/
   ventoy/
-    ventoy.json          # Plugin config (copy from repo root)
+    ventoy.json              # Plugin config
   ISO/
     artix-base-openrc/
       artix-base-openrc-*.iso
@@ -21,13 +21,12 @@ USB (Ventoy)/
     windows/
       Win11_*.iso
   Templates/
-    autounattend.xml     # Windows unattended install
-  scripts/
-    artix-scripts.tar.gz # LiveInjection archive (generated)
-  sysroot/               # LiveInjection sysroot (files injected into live OS)
-    etc/
-    root/
-    usr/
+    autounattend.xml         # Windows unattended install
+  sysroot/
+    .live_injection.tar.gz   # LiveInjection hooks (generated once)
+    etc/profile.d/           # Auto zsh switch + help
+    root/                    # .zshrc, .bashrc with aliases
+    usr/local/bin/           # Installer scripts + tools
 ```
 
 ## 0. Ventoy Setup
@@ -37,19 +36,20 @@ USB (Ventoy)/
    ```sh
    sudo sh Ventoy2Disk.sh -i /dev/sdX
    ```
-3. Copy `ventoy.json` from this repo to `/ventoy/ventoy.json` on the USB
-4. Create directory structure: `ISO/`, `Templates/`, `scripts/`, `sysroot/`
+3. Copy `ventoy.json` from this repo to `ventoy/ventoy.json` on the USB
+4. Copy `artix/sysroot/` to `sysroot/` on the USB
+5. Copy `windows/autounattend.xml` to `Templates/autounattend.xml` on the USB
+6. Download ISOs and place in `ISO/` subdirectories
 
 ## 1. Windows 11
 
 ### Download
-- [Windows 11 ISO](https://www.microsoft.com/en-us/software-download/windows11) (select English International, 64-bit)
+- [Windows 11 ISO](https://www.microsoft.com/en-us/software-download/windows11) (English International, 64-bit)
 - Place at `ISO/windows/Win11_25H2_EnglishInternational_x64.iso`
 
 ### Unattended Install
-- Copy `windows/autounattend.xml` to `Templates/autounattend.xml` on the USB
-- Bypasses TPM, Secure Boot, and RAM checks
-- When booting the ISO, Ventoy will offer the unattended template
+- `Templates/autounattend.xml` bypasses TPM, Secure Boot, and RAM checks
+- When booting the ISO, Ventoy offers the unattended template
 
 ### Manual Steps After Install
 - Install GPU drivers (NVIDIA/AMD)
@@ -63,33 +63,28 @@ USB (Ventoy)/
 
 ### LiveInjection Setup
 
-The Artix installer uses [LiveInjection](https://github.com/ventoy/LiveInjection) to inject scripts into the live environment. One-time setup:
+Scripts are injected into the live environment using [LiveInjection](https://github.com/ventoy/LiveInjection) with live directory mode — the sysroot directory lives directly on the USB. Edit scripts in place, changes take effect on next boot without repacking.
+
+**One-time setup:**
 
 1. Clone LiveInjection:
    ```sh
    git clone https://github.com/ventoy/LiveInjection.git /tmp/LiveInjection
    ```
 
-2. Copy the sysroot from this repo to `/tmp/LiveInjection/sysroot/`:
-   ```sh
-   cp -r artix/sysroot/* /tmp/LiveInjection/sysroot/
-   ```
-
-3. Optionally add static binaries to `sysroot/usr/local/bin/`:
-   - `fzf` - fuzzy finder (for timezone/disk selection)
-   - `yazi` - terminal file manager
-   - `wproulette` - wallpaper roulette
-
-4. Pack the injection archive:
+2. Generate the hooks archive into the sysroot on the USB:
    ```sh
    cd /tmp/LiveInjection
-   sh pack.sh
+   sudo sh pack.sh --live /sysroot /mnt/ventoy-usb/sysroot
    ```
+   This creates a tiny (~2KB) `.live_injection.tar.gz` inside the sysroot directory.
 
-5. Copy to USB:
-   ```sh
-   cp live_injection.tar.gz /mnt/ventoy-usb/scripts/artix-scripts.tar.gz
-   ```
+3. Optionally add static binaries to `sysroot/usr/local/bin/`:
+   - `fzf` — fuzzy finder (for timezone/disk selection)
+   - `yazi` — terminal file manager
+   - `wproulette` — wallpaper roulette ([repo](https://github.com/v-dermichev/swww-wproulette))
+
+> **Note:** The `pack.sh --live` flag requires a [patched LiveInjection](https://github.com/v-dermichev/LiveInjection/tree/feature/directory-sysroot) that supports live directory mode. The classic `pack.sh` (without `--live`) also works — it packs the sysroot into the archive, but requires repacking after every edit.
 
 ### Installation Flow
 
@@ -129,9 +124,22 @@ Boot the Artix ISO from Ventoy. The injected scripts provide:
 
 > TODO: Arch-specific installer scripts
 
+## VM Testing
+
+A libvirt VM template is provided at `artix/vm-template.xml` (virtio-gpu with GL + SPICE).
+
+```sh
+# Create a 40GB test disk
+qemu-img create -f qcow2 /tmp/vm-disk.qcow2 40G
+
+# Import the VM (update disk paths in the XML first)
+virsh define artix/vm-template.xml
+virsh start artix-main
+```
+
 ## Notes
 
-- The `ventoy.json` uses the [injection plugin](https://ventoy.net/en/plugin_injection.html) to inject scripts into the live ISO
-- ISOs are NOT included in this repo — download them separately
-- The `artix-scripts.tar.gz` is generated by LiveInjection's `pack.sh` — do not commit it
+- ISOs are NOT included — download them separately
+- The `.live_injection.tar.gz` is generated by LiveInjection — do not commit it
 - Network backup directory (`Network/`) is optional for preserving WiFi/WG configs across installs
+- `awww` (formerly `swww`) is the wallpaper daemon — symlinks for backward compatibility are created during install
