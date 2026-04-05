@@ -14,13 +14,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Host → VM: listen for clipboard data from host
-socat TCP-LISTEN:$PORT_FROM_HOST,reuseaddr,fork EXEC:"wl-copy" &
+# Host → VM: listen for clipboard data, deduplicate
+(
+    last=""
+    socat TCP-LISTEN:$PORT_FROM_HOST,reuseaddr,fork STDOUT | while IFS= read -r line; do
+        [ "$line" = "$last" ] && continue
+        [ -z "$line" ] && continue
+        last="$line"
+        echo "$line" | wl-copy
+    done
+) &
 PID_RECV=$!
 
-# VM → Host: watch VM clipboard, send changes to host
-sleep 1  # wait for listener to start
-wl-paste --watch socat - TCP:$HOST_IP:$PORT_TO_HOST &
+# VM → Host: watch clipboard, send only non-empty changes
+sleep 1
+(
+    last=""
+    wl-paste --watch sh -c '
+        data=$(wl-paste 2>/dev/null)
+        [ -n "$data" ] && echo "$data"
+    ' | while IFS= read -r line; do
+        [ "$line" = "$last" ] && continue
+        [ -z "$line" ] && continue
+        last="$line"
+        echo "$line" | socat - TCP:$HOST_IP:$PORT_TO_HOST 2>/dev/null
+    done
+) &
 PID_SEND=$!
 
 wait
