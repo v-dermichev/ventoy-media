@@ -1,0 +1,16 @@
+{
+    "auto_install":[
+        {
+            "parent": "/ISO/windows",
+            "template":[
+                "/Templates/autounattend.xml"
+            ]
+        }
+    ],
+    "injection":[
+        {
+            "image": "/ISO/artix-base-openrc/artix-base-openrc-20250407-x86_64.iso",
+            "archive": "/scripts/artix-scripts.tar.gz"
+        }
+    ]
+}
