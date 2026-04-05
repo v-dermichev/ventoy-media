@@ -9,28 +9,32 @@
 
 VM="${1:?Usage: cb-host.sh user@vm-ip [wayland-display]}"
 VM_WL="${2:-wayland-1}"
-SSH="ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
 STATE="/tmp/cb-bridge-host"
 rm -rf "$STATE"
 mkdir -p "$STATE"
+LOG="$STATE/debug.log"
 
 cleanup() { kill $(jobs -p) 2>/dev/null; rm -rf "$STATE"; echo "stopped"; }
 trap cleanup EXIT
 
 echo "clipboard bridge: host ↔ $VM (WAYLAND_DISPLAY=$VM_WL)"
+echo "log: $LOG"
 
 # Host → VM: poll clipboard, send if changed
 (
     while true; do
         wl-paste 2>/dev/null > "$STATE/cur"
-        if [ -s "$STATE/cur" ] && \
-           ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
-           ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
-            cp "$STATE/cur" "$STATE/sent"
-            data=$(base64 -w0 < "$STATE/cur")
-            # ssh -f backgrounds the remote wl-copy (it stays alive to serve pastes)
-            ssh -f -o BatchMode=yes -o ConnectTimeout=2 "$VM" "echo '$data' | base64 -d | WAYLAND_DISPLAY=$VM_WL wl-copy" 2>/dev/null || true
+        if [ -s "$STATE/cur" ]; then
+            s1=$(! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && echo 1 || echo 0)
+            s2=$(! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null && echo 1 || echo 0)
+            if [ "$s1" = "1" ] && [ "$s2" = "1" ]; then
+                cp "$STATE/cur" "$STATE/sent"
+                data=$(base64 -w0 < "$STATE/cur")
+                echo "$(date +%T) SEND: $(head -c 40 $STATE/cur)..." >> "$LOG"
+                ssh -f -o BatchMode=yes -o ConnectTimeout=2 "$VM" \
+                    "echo '$data' | base64 -d | WAYLAND_DISPLAY=$VM_WL wl-copy" 2>>"$LOG" || true
+            fi
         fi
         sleep 0.3
     done
@@ -39,14 +43,18 @@ echo "clipboard bridge: host ↔ $VM (WAYLAND_DISPLAY=$VM_WL)"
 # VM → Host: poll VM clipboard via SSH, copy if changed
 (
     while true; do
-        $SSH "$VM" "WAYLAND_DISPLAY=$VM_WL wl-paste 2>/dev/null | base64" </dev/null 2>/dev/null > "$STATE/remote_b64"
+        ssh -o BatchMode=yes -o ConnectTimeout=2 "$VM" \
+            "WAYLAND_DISPLAY=$VM_WL wl-paste 2>/dev/null | base64 -w0" </dev/null 2>/dev/null > "$STATE/remote_b64"
         if [ -s "$STATE/remote_b64" ]; then
             base64 -d < "$STATE/remote_b64" > "$STATE/remote" 2>/dev/null
-            if [ -s "$STATE/remote" ] && \
-               ! cmp -s "$STATE/remote" "$STATE/recv" 2>/dev/null && \
-               ! cmp -s "$STATE/remote" "$STATE/sent" 2>/dev/null; then
-                cp "$STATE/remote" "$STATE/recv"
-                wl-copy < "$STATE/recv"
+            if [ -s "$STATE/remote" ]; then
+                r1=$(! cmp -s "$STATE/remote" "$STATE/recv" 2>/dev/null && echo 1 || echo 0)
+                r2=$(! cmp -s "$STATE/remote" "$STATE/sent" 2>/dev/null && echo 1 || echo 0)
+                if [ "$r1" = "1" ] && [ "$r2" = "1" ]; then
+                    cp "$STATE/remote" "$STATE/recv"
+                    echo "$(date +%T) RECV: $(head -c 40 $STATE/remote)..." >> "$LOG"
+                    wl-copy < "$STATE/recv"
+                fi
             fi
         fi
         sleep 0.3
@@ -54,4 +62,5 @@ echo "clipboard bridge: host ↔ $VM (WAYLAND_DISPLAY=$VM_WL)"
 ) &
 
 echo "  polling every 300ms"
+echo "  tail -f $LOG"
 wait
