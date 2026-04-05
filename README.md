@@ -128,7 +128,10 @@ Boot the Artix ISO from Ventoy. The injected scripts provide:
 #### Optional packages
 The dotfiles expect some apps that are not installed by the script:
 ```sh
-sudo pacman -S brave-bin chromium dotnet-sdk
+# From Arch extra repo
+sudo pacman -S chromium dotnet-sdk
+# From AUR (requires yay or paru)
+yay -S brave-bin
 ```
 These can be installed later, or their references removed from `~/.config/hypr/hyprland.conf` and `~/.config/waybar/config.jsonc` if not needed.
 
