@@ -1,67 +1,60 @@
 # Clipboard Bridge for Wayland VMs
 
-Bidirectional clipboard sharing between a Wayland host and a Wayland VM guest over the network. Works with Hyprland, Sway, and any Wayland compositor.
+Bidirectional clipboard sharing between a Wayland host and a Wayland VM guest via SSH. Works with Hyprland, Sway, and any Wayland compositor.
 
 ## Why?
 
-SPICE clipboard sharing doesn't work with Wayland compositors — it only supports X11. This bridge uses `wl-copy`/`wl-paste` on both sides with a simple TCP connection.
+SPICE clipboard sharing doesn't work with Wayland compositors — it only supports X11. This bridge uses SSH to poll and sync clipboards using `wl-copy`/`wl-paste` on both sides.
 
 ## How it works
 
 ```
-Host                          VM
-wl-paste --watch ──TCP:5556──► wl-copy    (host → VM)
-wl-copy  ◄──────TCP:5557───── wl-paste --watch  (VM → host)
+Host                              VM
+wl-paste → ssh vm wl-copy         (host → VM)
+wl-copy  ← ssh vm wl-paste        (VM → host)
 ```
 
-Both sides watch for clipboard changes and send them to the other.
+A single script runs on the host, polling both clipboards every 300ms via SSH.
 
 ## Setup
 
-### Host (one-time)
-
-1. Install the libvirt hook for automatic start/stop:
-   ```sh
-   sudo mkdir -p /etc/libvirt/hooks
-   sudo cp qemu-hook.sh /etc/libvirt/hooks/qemu
-   sudo chmod +x /etc/libvirt/hooks/qemu
-   sudo systemctl restart libvirtd  # or: sudo rc-service libvirtd restart
-   ```
-
-2. Copy `cb-host.sh` somewhere in your PATH:
-   ```sh
-   cp cb-host.sh ~/.local/bin/
-   ```
-
 ### VM Guest (one-time)
 
-1. Copy `cb-guest.sh` to the VM and place in PATH:
-   ```sh
-   cp cb-guest.sh ~/.local/bin/
-   ```
-
-2. Add to Hyprland autostart:
-   ```
-   exec-once = cb-guest.sh
-   ```
-
-### Manual usage (without hooks)
-
 ```sh
-# On host — start bridge for VM at 192.168.122.xxx
-cb-host.sh 192.168.122.xxx
-
-# On VM — start bridge (host is always 192.168.122.1)
-cb-guest.sh
+sudo pacman -S openssh-openrc wl-clipboard
+sudo rc-update add sshd default
+sudo rc-service sshd start
 ```
 
-## Ports
+### Host (one-time)
 
-| Port | Direction | Purpose |
-|------|-----------|---------|
-| 5556 | Host → VM | Host clipboard pushed to VM |
-| 5557 | VM → Host | VM clipboard pushed to host |
+```sh
+# Copy SSH key to VM (so bridge doesn't ask for password)
+ssh-copy-id user@192.168.122.xxx
+
+# Copy bridge script to PATH
+cp cb-host.sh ~/.local/bin/
+```
+
+### Run
+
+```sh
+# On host only — no script needed on VM
+cb-host.sh user@192.168.122.xxx
+```
+
+### Auto-start with libvirt hook
+
+```sh
+sudo mkdir -p /etc/libvirt/hooks
+sudo cp qemu-hook.sh /etc/libvirt/hooks/qemu
+sudo chmod +x /etc/libvirt/hooks/qemu
+sudo rc-service libvirtd restart
+```
+
+Edit `qemu-hook.sh` to set your VM username and add VM names to the case statement.
 
 ## Requirements
 
-Both host and VM need: `wl-clipboard`, `socat`
+- **Host**: `wl-clipboard`, `openssh`
+- **VM**: `openssh`, `wl-clipboard`, sshd running

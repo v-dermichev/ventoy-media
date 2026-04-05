@@ -1,14 +1,13 @@
 #!/bin/bash
 # Clipboard bridge — HOST side
-# Sends host clipboard to VM, receives VM clipboard
+# Sends host clipboard to VM, receives VM clipboard via SSH
 #
-# Usage: cb-host.sh <vm-ip>
-# Example: cb-host.sh 192.168.122.100
+# Usage: cb-host.sh <user@vm-ip>
+# Example: cb-host.sh test@192.168.122.100
+#
+# Requires: SSH access to VM (key-based auth recommended)
 
-VM_IP="${1:?Usage: cb-host.sh <vm-ip>}"
-PORT_TO_VM=5556    # host → VM
-PORT_FROM_VM=5557  # VM → host
-BIND_IP="192.168.122.1"
+VM="${1:?Usage: cb-host.sh user@vm-ip}"
 
 STATE="/tmp/cb-bridge-host"
 mkdir -p "$STATE"
@@ -16,7 +15,7 @@ mkdir -p "$STATE"
 cleanup() { kill $(jobs -p) 2>/dev/null; rm -rf "$STATE"; echo "stopped"; }
 trap cleanup EXIT
 
-echo "clipboard bridge: host ↔ $VM_IP"
+echo "clipboard bridge: host ↔ $VM (via SSH)"
 
 # Host → VM: poll clipboard, send if changed
 (
@@ -26,22 +25,25 @@ echo "clipboard bridge: host ↔ $VM_IP"
            ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
            ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
             cp "$STATE/cur" "$STATE/sent"
-            nc -q0 -w1 "$VM_IP" "$PORT_TO_VM" < "$STATE/cur" 2>/dev/null || true
+            ssh -o ConnectTimeout=2 "$VM" 'wl-copy' < "$STATE/cur" 2>/dev/null || true
         fi
         sleep 0.3
     done
 ) &
 
-# VM → Host: listen for incoming clipboard
+# VM → Host: poll VM clipboard via SSH, copy if changed
 (
     while true; do
-        nc -l -p "$PORT_FROM_VM" -s "$BIND_IP" > "$STATE/inc" 2>/dev/null
-        if [ -s "$STATE/inc" ] && ! cmp -s "$STATE/inc" "$STATE/recv" 2>/dev/null; then
-            cp "$STATE/inc" "$STATE/recv"
-            wl-copy < "$STATE/inc"
+        ssh -o ConnectTimeout=2 "$VM" 'wl-paste 2>/dev/null' > "$STATE/remote" 2>/dev/null
+        if [ -s "$STATE/remote" ] && \
+           ! cmp -s "$STATE/remote" "$STATE/recv" 2>/dev/null && \
+           ! cmp -s "$STATE/remote" "$STATE/sent" 2>/dev/null; then
+            cp "$STATE/remote" "$STATE/recv"
+            wl-copy < "$STATE/recv"
         fi
+        sleep 0.3
     done
 ) &
 
-echo "  host→vm :$PORT_TO_VM  vm→host :$PORT_FROM_VM"
+echo "  polling every 300ms"
 wait
