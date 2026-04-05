@@ -17,7 +17,7 @@ trap cleanup EXIT
 # Host → VM: listen for clipboard data, deduplicate
 (
     last=""
-    socat TCP-LISTEN:$PORT_FROM_HOST,reuseaddr,fork STDOUT | while IFS= read -r line; do
+    socat -d0 TCP-LISTEN:$PORT_FROM_HOST,reuseaddr,fork STDOUT | while IFS= read -r line; do
         [ "$line" = "$last" ] && continue
         [ -z "$line" ] && continue
         last="$line"

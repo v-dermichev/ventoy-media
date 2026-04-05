@@ -35,7 +35,7 @@ PID_SEND=$!
 # VM → Host: listen for clipboard data from VM, deduplicate
 (
     last=""
-    socat TCP-LISTEN:$PORT_FROM_VM,bind=192.168.122.1,reuseaddr,fork STDOUT | while IFS= read -r line; do
+    socat -d0 TCP-LISTEN:$PORT_FROM_VM,bind=192.168.122.1,reuseaddr,fork STDOUT | while IFS= read -r line; do
         [ "$line" = "$last" ] && continue
         [ -z "$line" ] && continue
         last="$line"
