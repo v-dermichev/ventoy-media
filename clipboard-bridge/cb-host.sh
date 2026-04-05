@@ -28,9 +28,9 @@ echo "clipboard bridge: host ↔ $VM (WAYLAND_DISPLAY=$VM_WL)"
            ! cmp -s "$STATE/cur" "$STATE/sent" 2>/dev/null && \
            ! cmp -s "$STATE/cur" "$STATE/recv" 2>/dev/null; then
             cp "$STATE/cur" "$STATE/sent"
-            data=$(base64 < "$STATE/cur")
+            data=$(base64 -w0 < "$STATE/cur")
             # ssh -f backgrounds the remote wl-copy (it stays alive to serve pastes)
-            $SSH -f "$VM" "echo $data | base64 -d | WAYLAND_DISPLAY=$VM_WL wl-copy" 2>/dev/null || true
+            ssh -f -o BatchMode=yes -o ConnectTimeout=2 "$VM" "echo '$data' | base64 -d | WAYLAND_DISPLAY=$VM_WL wl-copy" 2>/dev/null || true
         fi
         sleep 0.3
     done
