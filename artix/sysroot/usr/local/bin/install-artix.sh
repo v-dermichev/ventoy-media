@@ -59,6 +59,16 @@ read -p "Enable autologin on tty1? [y/N]: " AUTOLOGIN
 # Sudo password
 read -p "Require password for sudo? [Y/n]: " SUDO_PASSWD
 
+# AUR helper
+echo ""
+echo "AUR (Arch User Repository) is a community archive of build scripts"
+echo "for apps not available in official repos (e.g. Brave, Zen Browser, Obsidian)."
+echo ""
+echo "  1) yay   — Go-based, most popular"
+echo "  2) paru  — Rust-based, feature-rich"
+echo "  3) skip"
+read -p "Install AUR helper? [1/2/3]: " AUR_HELPER
+
 # Timezone
 echo ""
 if command -v fzf >/dev/null 2>&1; then
@@ -260,12 +270,6 @@ pacman -S --noconfirm --needed \
 ln -sf /usr/bin/awww /usr/local/bin/swww
 ln -sf /usr/bin/awww-daemon /usr/local/bin/swww-daemon
 
-# Install wproulette if available on live media
-if [ -f /usr/local/bin/wproulette ]; then
-    cp /usr/local/bin/wproulette /usr/local/bin/
-    chmod +x /usr/local/bin/wproulette
-fi
-
 # Bluetooth service
 rc-update add bluetoothd default
 
@@ -285,6 +289,18 @@ echo "Phase 2 complete"
 PHASE2
 artix-chroot /mnt bash /root/phase2.sh
 rm -f /mnt/root/phase2.sh
+
+# Install wproulette if available on live media
+if [ -f /usr/local/bin/wproulette ]; then
+    cp /usr/local/bin/wproulette /mnt/usr/local/bin/
+    chmod +x /mnt/usr/local/bin/wproulette
+fi
+
+# Install wayland-vdagent for VM clipboard support
+if $IS_VM && [ -f /usr/local/bin/wayland-vdagent ]; then
+    cp /usr/local/bin/wayland-vdagent /mnt/usr/local/bin/
+    chmod +x /mnt/usr/local/bin/wayland-vdagent
+fi
 
 # Dotfiles
 echo ""
@@ -318,6 +334,50 @@ DOTSCRIPT
 artix-chroot /mnt su - "$USERNAME" -c "bash /var/tmp/setup-dotfiles.sh"
 rm -f /mnt/var/tmp/setup-dotfiles.sh
 
+# AUR helper
+if [ "$AUR_HELPER" = "1" ] || [ "$AUR_HELPER" = "2" ]; then
+    if [ "$AUR_HELPER" = "1" ]; then
+        AUR_NAME="yay"
+        AUR_REPO="https://aur.archlinux.org/yay-bin.git"
+    else
+        AUR_NAME="paru"
+        AUR_REPO="https://aur.archlinux.org/paru-bin.git"
+    fi
+    echo "Installing $AUR_NAME..."
+    cat > /mnt/var/tmp/install-aur.sh << AURSCRIPT
+#!/bin/bash
+set -e
+git clone $AUR_REPO /tmp/$AUR_NAME
+cd /tmp/$AUR_NAME
+makepkg -si --noconfirm
+rm -rf /tmp/$AUR_NAME
+AURSCRIPT
+    artix-chroot /mnt su - "$USERNAME" -c "bash /var/tmp/install-aur.sh"
+    rm -f /mnt/var/tmp/install-aur.sh
+fi
+
+# VM: setup spice-vdagentd service and wayland-vdagent autostart
+if $IS_VM; then
+    echo "Configuring VM clipboard support..."
+    # Create OpenRC init script for spice-vdagentd
+    cat > /mnt/etc/init.d/spice-vdagentd << 'INITEOF'
+#!/sbin/openrc-run
+description="SPICE guest agent daemon"
+command=/usr/bin/spice-vdagentd
+command_args="-x"
+command_background=true
+pidfile=/run/spice-vdagentd.pid
+start_pre() {
+    mkdir -p /run/spice-vdagentd
+}
+INITEOF
+    chmod +x /mnt/etc/init.d/spice-vdagentd
+    artix-chroot /mnt rc-update add spice-vdagentd default
+
+    # Add wayland-vdagent to Hyprland autostart
+    echo 'exec-once = wayland-vdagent' >> /mnt/home/$USERNAME/.config/hypr/hyprland.conf
+fi
+
 echo ""
 echo "==========================================="
 echo "  ✓ Installation complete!"
@@ -326,10 +386,16 @@ echo ""
 echo "  Hostname: $HOSTNAME"
 echo "  User:     $USERNAME"
 echo ""
-echo "  Next steps:"
-echo "  1. Reboot: umount -R /mnt && reboot"
-echo "  2. Log in at TTY1 — Hyprland starts automatically"
-echo "  3. Connect WiFi: nmtui"
+echo "  To adjust the installed system before rebooting:"
+echo "    artix-chroot /mnt        # chroot as root"
+echo "    artix-chroot /mnt su - $USERNAME  # chroot as user"
+echo ""
+echo "  To reboot:"
+echo "    umount -R /mnt && reboot"
+echo ""
+echo "  After reboot:"
+echo "    Log in at TTY1 — Hyprland starts automatically"
+echo "    Connect WiFi: nmtui"
 echo ""
 $HAS_NVIDIA && echo "  NVIDIA: configured with modesetting + VRAM preservation"
 echo ""
