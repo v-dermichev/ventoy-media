@@ -139,21 +139,90 @@ yay -S zen-browser-bin obsidian
 ```
 These can be installed later, or their references removed from `~/.config/hypr/hyprland.conf` and `~/.config/waybar/config.jsonc` if not needed.
 
-## 3. Arch Linux
+## 3. Arch Linux (systemd, Hyprland + SDDM)
 
-> TODO: Arch-specific installer scripts
+### Download
+
+- [Arch Linux ISO](https://archlinux.org/download/)
+- Place at `ISO/archlinux/archlinux-x86_64.iso`
+
+### Installation Flow
+
+Arch's official live ISO does **not** use LiveInjection, so the installer scripts
+are not auto-injected. Pull them into the live environment yourself — two options:
+
+**Option A — network (simplest):**
+```sh
+# From the Arch live ISO
+iwctl           # or plug in ethernet
+pacman -Sy curl
+curl -fsSL https://raw.githubusercontent.com/v-dermichev/ventoy-media/master/arch/sysroot/usr/local/bin/install-arch.sh -o /usr/local/bin/install-arch.sh
+curl -fsSL https://raw.githubusercontent.com/v-dermichev/ventoy-media/master/arch/sysroot/usr/local/bin/partition-disk.sh -o /usr/local/bin/partition-disk.sh
+curl -fsSL https://raw.githubusercontent.com/v-dermichev/ventoy-media/master/arch/sysroot/usr/local/bin/wifi-connect.sh -o /usr/local/bin/wifi-connect.sh
+chmod +x /usr/local/bin/{install-arch,partition-disk,wifi-connect}.sh
+```
+
+**Option B — from the Ventoy USB (offline):**
+```sh
+mkdir /media/ventoy
+mount /dev/vdb1 /media/ventoy           # or /dev/sdX1 for a physical USB
+cp /media/ventoy/arch/sysroot/usr/local/bin/*.sh /usr/local/bin/
+cp /media/ventoy/arch/sysroot/usr/local/bin/wayland-vdagent /usr/local/bin/ 2>/dev/null || true
+```
+
+Then run the pipeline:
+
+| Command             | Description                                   |
+|---------------------|-----------------------------------------------|
+| `partition-disk.sh` | Interactive disk partitioner                  |
+| `wifi-connect.sh`   | WiFi connection helper (uses `iwctl`)         |
+| `install-arch.sh`   | Full system installer (Hyprland + SDDM)       |
+
+#### Step by step
+1. Boot Arch ISO from the Ventoy menu
+2. Connect to the network (`iwctl` or ethernet)
+3. Fetch scripts (Option A or B above)
+4. `partition-disk.sh`
+5. `install-arch.sh`
+6. `umount -R /mnt && reboot`
+
+#### What gets installed
+- **Base:** systemd, linux, GRUB (EFI)
+- **Display manager:** SDDM (lists all installed Wayland sessions)
+- **Compositor:** Hyprland by default, with an optional prompt for sway, plasma, gnome, or all
+- **Desktop stack:** waybar, kitty, wofi, swaync, PipeWire, Bluetooth, thunar, neovim, lazygit, etc.
+- **GPU:** NVIDIA-open-dkms / Intel / VM (virtio + virglrenderer)
+- **VM extras:** `spice-vdagentd.service` enabled, `wayland-vdagent` installed as a systemd
+  user service bound to `graphical-session.target`
+- **Shell & dotfiles:** zsh + oh-my-zsh, dotfiles cloned from the main repo
+
+#### Install prompts
+- Username, hostname, password
+- SDDM autologin (opt-in)
+- Sudo password requirement (opt-out)
+- Additional compositors (sway / plasma / gnome / all / none)
+- AUR helper (yay / paru / skip)
+- Timezone (fzf selector if available)
 
 ## VM Testing
 
-A libvirt VM template is provided at `artix/vm-template.xml` (virtio-gpu with GL + SPICE).
+A libvirt VM template is provided at `artix/vm-template.xml` (q35 + OVMF, virtio-gpu
+with 3D accel + SPICE, virtio-serial + spicevmc for clipboard). The `arch/vm-template.xml`
+is currently identical. Placeholders: `{{NAME}}`, `{{DISK}}`, `{{NVRAM_TEMPLATE}}`, `{{BOOT_MEDIA}}`.
 
 ```sh
-# Create a 40GB test disk
-qemu-img create -f qcow2 /tmp/vm-disk.qcow2 40G
+# Create a 40GB test disk + fresh NVRAM
+qemu-img create -f qcow2 /tmp/arch-disk.qcow2 40G
+cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /tmp/arch-ovmf-vars.fd
 
-# Import the VM (update disk paths in the XML first)
-virsh define artix/vm-template.xml
-virsh start artix-main
+# Render the template and import
+sed -e 's|{{NAME}}|arch-main|g' \
+    -e 's|{{DISK}}|/tmp/arch-disk.qcow2|g' \
+    -e 's|{{NVRAM_TEMPLATE}}|/tmp/arch-ovmf-vars.fd|g' \
+    -e 's|{{BOOT_MEDIA}}|/tmp/ventoy.img|g' \
+    arch/vm-template.xml > /tmp/arch-main.xml
+virsh define /tmp/arch-main.xml
+virsh start arch-main
 ```
 
 ## Notes
