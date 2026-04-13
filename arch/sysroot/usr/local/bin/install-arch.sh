@@ -234,7 +234,7 @@ set -e
 
 # Desktop environment — Hyprland + SDDM
 pacman -S --noconfirm --needed \\
-    hyprland waybar wofi swww swaync socat \\
+    hyprland waybar wofi awww swaync socat \\
     grim slurp swappy hyprshot wf-recorder \\
     kitty \\
     pipewire pipewire-pulse wireplumber \\

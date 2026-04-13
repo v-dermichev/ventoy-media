@@ -70,7 +70,7 @@ The hooks archive (`.live_injection.tar.gz`) is included in this repo. Just copy
 Optionally add static binaries to `sysroot/usr/local/bin/`:
 - `fzf` — fuzzy finder (for timezone/disk selection)
 - `yazi` — terminal file manager
-- `wproulette` — wallpaper roulette ([repo](https://github.com/v-dermichev/swww-wproulette))
+- `wproulette` — wallpaper roulette ([repo](https://github.com/v-dermichev/awww-wproulette))
 
 > **Regenerating the hooks archive:** Only needed if you change the sysroot path on the USB. Requires the [patched LiveInjection](https://github.com/v-dermichev/LiveInjection/tree/feature/directory-sysroot) fork:
 > ```sh
